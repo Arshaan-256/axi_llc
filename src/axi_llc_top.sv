@@ -163,9 +163,14 @@ module axi_llc_top #(
   parameter int unsigned AxiLiteDataWidth = 32'd0,
   /// Parameter for Number of Master's Configured through
   /// AXI4-Lite Port (Should be in powers of two and >=1)
-  // Configure as 1 if not want to use, default reg -> 0 
+  // Configure as 1 if not want to use, default reg value is 0.
   // Should be < 2*(AxiCfg.slvIDWidth), for compatibility  
-  parameter int unsigned NumCfgRegcp = 32'd1,
+  parameter int unsigned NumCfgRegcp      = 32'd1,
+  /// Source / Master ID Selection (Used for cache-partitioning.)
+  // Assume, we have 10 bits for AXI ID, and bits 7-9 are used for ID,
+  // then set SourceIDStart = 7, SourceIDEnd = 9. (Both inclusive.)
+  parameter int unsigned SourceIDStart    = 0,
+  parameter int unsigned SourceIDEnd      = AxiIdWidth,
   /// AXI4+ATOP request type on the slave port.
   /// Expected format can be defined using `AXI_TYPEDEF_REQ_T.
   parameter type slv_req_t      = logic,
@@ -584,10 +589,12 @@ module axi_llc_top #(
     .AxiCfg         ( AxiCfg        ),
     .desc_t         ( llc_desc_t    ),
     .lock_t         ( lock_t        ),
-    .cnt_t    	     ( cnt_t         ),
+    .cnt_t    	    ( cnt_t         ),
     .way_ind_t      ( way_ind_t     ),
     .bitmask_ind_t  ( bitmask_ind_t ),
-    .NumCfgRegcp    ( NumCfgRegcp   )
+    .NumCfgRegcp    ( NumCfgRegcp   ),
+    .SourceIDStart  ( SourceIDStart ),
+    .SourceIDEnd    ( SourceIDEnd   )
   ) i_hit_miss_unit (
     .clk_i,
     .rst_ni,

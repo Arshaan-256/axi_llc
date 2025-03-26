@@ -51,7 +51,14 @@ module axi_llc_hit_miss #(
   parameter type 			bitmask_ind_t = logic,
   /// AXI4 - Lite Cfg Registers for cache partitioning (Number of CfgReg)
   /// Should be a power of 2 (And should be 1 or higher)
-  parameter int unsigned		NumCfgRegcp = 32'd1,
+  parameter int unsigned		NumCfgRegcp   = 32'd1,
+  /// Source / Master ID Selection (Used for cache-partitioning.)
+  // Assume, we have 10 bits for AXI ID, and bits 7-9 are used for ID,
+  // then set SourceIDStart = 7, SourceIDEnd = 9. (Both inclusive.)
+  parameter int unsigned SourceIDStart    = 0,
+  parameter int unsigned SourceIDEnd      = AxiCfg.SlvPortIdWidth,
+  // This is autofilled. Do not expose.
+  parameter int unsigned SOURCE_ID_BITS   = SourceIDEnd - SourceIDStart + 1,
   /// Kbit selection from AXI_ID bits for Master Selection
   parameter int unsigned Kbit_AXIID = (NumCfgRegcp == 1) ? 1 : $clog2(NumCfgRegcp)
 ) (
@@ -338,13 +345,18 @@ module axi_llc_hit_miss #(
   end
   
 
-  /// Logics for k-bit sampling from AXI_ID 
+  /// Cache way locking logic.
   /// Assigning total lock (Spm_Lock | bitmask_lock)
-  logic [Kbit_AXIID-1:0] temp_bitmask;
-  way_ind_t axiID_bitmask, total_lock_i, total_lock_i_d, total_lock_i_q;
-  assign temp_bitmask = desc_i.a_x_id[AxiCfg.SlvPortIdWidth-1 : AxiCfg.SlvPortIdWidth-Kbit_AXIID];
-  assign axiID_bitmask = (NumCfgRegcp == 1) ? '0 : id_bitmask_i[temp_bitmask];
-  assign total_lock_i = spm_lock_i | axiID_bitmask;
+  logic [SOURCE_ID_BITS-1:0] axi_req_source_id;
+  way_ind_t source_id_lock, total_lock_i, total_lock_i_d, total_lock_i_q;
+
+  assign axi_req_source_id = desc_i.a_x_id[SourceIDStart +: SourceIDEnd];
+
+  // If cache partitioning is enabled (NumCfgRegcp > 1), then based on id_bitmask, generate ways
+  // locked for master with given source ID.
+  assign source_id_lock = (NumCfgRegcp == 1) ? '0 : id_bitmask_i[axi_req_source_id];
+
+  assign total_lock_i      = spm_lock_i | source_id_lock;
   
   // 2-Cycle delay for total_lock_i, so that PLRU unit gets correct value of total_lock
   `FFLARN(total_lock_i_d, total_lock_i, 1'b1, '0, clk_i, rst_ni)
